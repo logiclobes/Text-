@@ -1,141 +1,110 @@
-from tkinter import *
-from tkinter import messagebox
-import os
-import random
+import streamlit as st
+import re
+from PIL import Image
 
-sentences = [
-    "The quick brown fox jumps over the lazy dog.",
-    "Programming is fun and challenging.",
-    "Artificial Intelligence is shaping the future.",
-    "Keep calm and code on.",
-]
+def text_to_binary(text):
+    binary_result = ''.join(format(ord(char), '08b') for char in text)
+    return binary_result
 
-encrypted_message = ""
-decrypted_message = ""
-password = ""  # Initialize password variable
+def encode_lsb(image_file, message,password):
+     if len(password) < 4:
+        st.error("Password must be at least 4 characters long")
+        return
+     image = Image.open(image_file)
+     message +="W@E"
 
-def encryption(msg, sentences):
-    global encrypted_message
-    randsen = random.choice(sentences)
-    encrypted_message = randsen
-    return randsen
+     binary_message = text_to_binary(message)
+     binary_message += "1111111111111110"  # Adding a sentinel value to indicate the end of the message
 
+     if len(binary_message) > image.size[0] * image.size[1]:
+        st.error("Message is too long to be encoded in the image")
+        return
 
-def decryption(decmsg):
-    global encrypted_message, decrypted_message
-    if decmsg.strip() == encrypted_message.strip():
-        decrypted_message = message
-    else:
-        decrypted_message = "Decryption failed."
-    return decrypted_message
+     index = 0
+     for i in range(image.size[0]):
+        for j in range(image.size[1]):
+            pixel = list(image.getpixel((i, j)))
 
-def decrypt():
-    entered_password = code.get()
+            for k in range(3):  # Iterate over RGB channels
+                if index < len(binary_message):
+                    pixel[k] = pixel[k] & ~1 | int(binary_message[index])
+                    index += 1
 
-    if entered_password == password:
-        screen2 = Toplevel(screen)
-        screen2.title("Decryption")
-        screen2.geometry("400x200")
-        screen2.configure(bg="#00bd56")
+            image.putpixel((i, j), tuple(pixel))
 
-        decmsg = text1.get(1.0, END)
-       
-        decrypted_message = decryption(decmsg) 
+     output_path = "encoded_image.png"
+     image.save(output_path)
+     st.success("Message encoded successfully")
 
-        Label(screen2, text="DECRYPT", font="arial", fg="white", bg="#00bd56").place(x=10, y=0)
-        text2 = Text(screen2, font="Roboto 10", bg="white", relief=GROOVE, wrap=WORD, bd=0)
-        text2.place(x=10, y=40, width=380, height=150)
-
-        text2.insert(END, decrypted_message)
-
-    elif entered_password == "":
-        messagebox.showerror("Decryption", "Enter Password")
-
-    else:
-        messagebox.showerror("Decryption", "Invalid Password")
-
-def encrypt():
-    entered_password = code.get()
-
-    if entered_password == password:
-        screen1 = Toplevel(screen)
-        screen1.title("Encryption")
-        screen1.geometry("400x200")
-        screen1.configure(bg="#ed3833")
-        global message
-        message = text1.get(1.0, END)
+def decode_lsb(encoded_image_file,password):
+    try:
+        image = Image.open(encoded_image_file)
+        binary_message = ""
         
-        encrypted_message = encryption(message, sentences) 
         
-        Label(screen1, text="ENCRYPT", font="arial", fg="white", bg="#ed3833").place(x=10, y=0)
-        text2 = Text(screen1, font="Roboto 10", bg="white", relief=GROOVE, wrap=WORD, bd=0)
-        text2.place(x=10, y=40, width=380, height=150)
+        for i in range(image.size[0]):
+         for j in range(image.size[1]):
+            pixel = list(image.getpixel((i, j)))
 
-        text2.insert(END, encrypted_message)
+            for k in range(3):  # Iterate over RGB channels
+                binary_message += str(pixel[k] & 1)
+
+        binary_message = [binary_message[i:i+8] for i in range(0, len(binary_message), 8)]
+        decoded_message = ''.join([chr(int(byte, 2)) for byte in binary_message])
+
+        end_index = decoded_message.find("1111111111111110")
+        if end_index != -1:
+          decoded_message = decoded_message[:end_index]
         
-    elif entered_password == "":
-        messagebox.showerror("Encryption", "Enter Password")
+        return decoded_message
+    except:
+        st.error("Error")
 
-    else:
-        messagebox.showerror("Encryption", "Invalid Password") 
+def encode_message(image_file, message, password):
+    if image_file == "":
+        st.error("Please select an image file")
+        return
+
+    if message == "":
+        st.error("Please enter a message to encode")
+        return
+
+    if len(password) < 4:
+        st.error("Password must be at least 4 characters long")
+        return
+
+    encode_lsb(image_file, message, password)
     
-def set_password():
-    global password
-    new_password = new_password_entry.get()
-    if new_password:
-        password = new_password
-        messagebox.showinfo("Password Set", "Password has been set successfully.")
-        set_password_window.destroy()
-    else:
-        messagebox.showerror("Password Set", "Please enter a valid password.")
-
-
-
-def show_set_password_window():
-    global set_password_window
-    set_password_window = Toplevel(screen)
-    set_password_window.title("Set Password")
-    set_password_window.geometry("300x100")
-
-    Label(set_password_window, text="Enter New Password:").pack()
-    global new_password_entry
-    new_password_entry = Entry(set_password_window, show="*")
-    new_password_entry.pack()
-    Button(set_password_window, text="Set Password", command=set_password).pack()
-
-
-
-def main_screen():
-    global screen
-    global code
-    global text1
-
-    screen = Tk()
-    screen.geometry("375x398")
-
-    # icon
-    image_icon = PhotoImage(file="keys.png")
-    screen.iconphoto(False, image_icon)
-    screen.title("PctApp")
-
-    def reset():
-        code.set("")
-        text1.delete(1.0, END)
-
-    Label(text="Enter text for encryption and decryption", fg="black", font=("calbri", 13)).place(x=10, y=10)
-    text1 = Text(font="Roboto 20", bg="white", relief=GROOVE, wrap=WORD, bd=0)
-    text1.place(x=10, y=50, width=355, height=100)
-
-    Label(text="Enter secret key for encryption and decryption", fg="black", font=("calbri", 13)).place(x=10, y=170)
-
-    code = StringVar()
-    Entry(textvariable=code, width=19, bd=0, font=("arial", 25), show="*").place(x=10, y=200)
-
-    Button(text="ENCRYPT", height="2", width=23, bg="#ed3833", fg="white", bd=0, command=encrypt).place(x=10, y=250)
-    Button(text="DECRYPT", height="2", width=23, bg="#00bd56", fg="white", bd=0, command=decrypt).place(x=200, y=250)
-    Button(text="RESET", height="2", width=50, bg="#1089ff", fg="white", bd=0, command=reset).place(x=10, y=300)
-    Button(text="Set Password", height="2", width=50, bg="#ffcc00", fg="white", bd=0, command=show_set_password_window).place(x=10, y=350)
+def decode_message(encoded_image_file, password):
+    if encoded_image_file == "":
+        st.error("Please select an encoded image file")
+        return
     
-    screen.mainloop()
+    if len(password) < 4:
+        st.error("Password must be at least 4 characters long")
+        return
 
-main_screen()
+    decoded_message = decode_lsb(encoded_image_file,password)
+    decodeValue=splitdecodemessage(decoded_message)
+    if decoded_message:
+        st.success(f"The hidden message is: {decodeValue}")        
+    else:
+        st.error("No hidden message found in the image.")
+
+def splitdecodemessage(string):
+    result = []
+    result=string.split("W@E")
+    return result[0]
+
+# Streamlit UI setup
+st.title("Image Steganography")
+
+image_file = st.file_uploader("Select Image File:", type=["png", "jpg", "jpeg"])
+message = st.text_input("Enter Message:")
+password = st.text_input("Enter Password:", type="password")
+
+if st.button("Encode"):
+    encode_message(image_file, message, password)
+
+if st.button("Decode"):
+    decode_message(image_file, password)
